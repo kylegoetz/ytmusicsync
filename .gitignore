@@ -1,0 +1,12 @@
+.superpowers/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.sqlite
+*.sqlite-journal
+oauth.json
+browser.json
+headers.json
+venv/
+.venv/
+sync_report_*.csv
