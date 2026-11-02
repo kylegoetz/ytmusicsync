@@ -5,3 +5,4 @@ def test_dependencies_importable():
     import tqdm
     import src
     assert src.__name__ == "src"
+

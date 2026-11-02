@@ -143,18 +143,21 @@ def run_sync_single(
     dry_run: bool = False,
     fuzzy_threshold: float = 88.0,
     allow_duplicates: bool = False,
-    report_path: Optional[Path | str] = None
+    report_path: Optional[Path | str] = None,
+    matcher: Optional[TrackMatcher] = None
 ) -> Dict[str, Any]:
     m3u = Path(m3u_path)
     if not m3u.exists():
         raise FileNotFoundError(f"M3U playlist not found: {m3u}")
 
-    cache = UploadsCache(cache_db)
-    if cache.get_total_count() == 0:
-        raise RuntimeError(
-            f"Uploads cache '{cache_db}' is empty! "
-            "Please run 'python main.py cache' first to download your uploaded songs library."
-        )
+    if matcher is None:
+        cache = UploadsCache(cache_db)
+        if cache.get_total_count() == 0:
+            raise RuntimeError(
+                f"Uploads cache '{cache_db}' is empty! "
+                "Please run 'python main.py cache' first to download your uploaded songs library."
+            )
+        matcher = TrackMatcher(cache, fuzzy_threshold=fuzzy_threshold)
 
     playlist_name = custom_name or m3u.stem
     print(f"\nProcessing playlist: '{playlist_name}' ({m3u.name})")
@@ -162,9 +165,7 @@ def run_sync_single(
     tracks = parse_m3u(m3u)
     print(f"Extracted {len(tracks)} track entries from M3U.")
 
-    matcher = TrackMatcher(cache, fuzzy_threshold=fuzzy_threshold)
     match_results = []
-    
     for t in tqdm(tracks, desc="Matching tracks to uploaded library", unit="tracks"):
         match_results.append(matcher.match_track(t))
 
@@ -240,6 +241,13 @@ def handle_batch_sync(args: argparse.Namespace) -> int:
     reports_dir = Path(args.reports_dir)
     reports_dir.mkdir(parents=True, exist_ok=True)
 
+    cache = UploadsCache(args.cache_db)
+    if cache.get_total_count() == 0:
+        print(f"✗ Uploads cache '{args.cache_db}' is empty! Please run 'python main.py cache' first.")
+        return 1
+
+    shared_matcher = TrackMatcher(cache, fuzzy_threshold=args.fuzzy_threshold)
+
     success_count = 0
     for idx, m3u in enumerate(m3u_files, 1):
         print(f"\n==========================================")
@@ -254,7 +262,8 @@ def handle_batch_sync(args: argparse.Namespace) -> int:
                 dry_run=args.dry_run,
                 fuzzy_threshold=args.fuzzy_threshold,
                 allow_duplicates=args.allow_duplicates,
-                report_path=report_path
+                report_path=report_path,
+                matcher=shared_matcher
             )
             print(f"Matched {summary['matched_tracks']}/{summary['total_tracks']} ({summary['match_rate']}%)")
             success_count += 1
@@ -283,3 +292,4 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

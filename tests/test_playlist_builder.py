@@ -114,3 +114,4 @@ def test_build_playlist_live_with_chunking():
     assert summary["chunks"][1]["title"] == "My Big Playlist (Part 2 of 2)"
     assert mock_client.create_playlist.call_count == 2
     assert mock_client.add_playlist_items.call_count == 2
+

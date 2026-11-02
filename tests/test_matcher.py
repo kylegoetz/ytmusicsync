@@ -95,3 +95,4 @@ def test_unmatched_track(populated_cache):
     assert result.matched_video_id is None
     assert result.match_type == "none"
     assert result.confidence == 0.0
+

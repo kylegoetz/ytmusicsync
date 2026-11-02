@@ -10,8 +10,10 @@ def normalize_text(text: str) -> str:
     """
     Normalizes a song title, artist, or album string for high-accuracy matching:
     - Normalizes unicode characters (e.g. removes accents: 'Café' -> 'cafe')
-    - Strips track numbering prefixes ('01 - ')
+    - Strips track numbering prefixes ('01 - ') bounded to 1-3 digits (preserving years like 1984)
     - Removes parenthetical additions like '(feat. ...)', '[Live at ...]', '(Remastered ...)'
+    - Removes unparenthesized featured artist suffixes ('feat. Artist')
+    - Removes remaster/edition suffixes (' - 2017 Remaster', ' - Remastered 2009')
     - Removes special punctuation and collapses whitespace.
     """
     if not text:
@@ -21,20 +23,23 @@ def normalize_text(text: str) -> str:
     nfkd = unicodedata.normalize("NFKD", text)
     cleaned = "".join([c for c in nfkd if not unicodedata.combining(c)]).lower()
 
-    # Strip leading track numbers (e.g. '01 ', '01 - ', '01. ')
-    cleaned = re.sub(r"^\d+[\s\.\-_]+\s*", "", cleaned)
+    # Strip leading track numbers (e.g. '01 ', '01 - ', '01. ') bounded to 1-3 digits
+    cleaned = re.sub(r"^\d{1,3}[\s\.\-_]+\s*", "", cleaned)
 
-    # Remove contents inside parentheses/brackets matching known noise:
-    # feat, ft, remaster, live, bonus, deluxe, edit, mix, version, mono, stereo, album version
+    # Remove contents inside parentheses/brackets matching known noise
     noise_pattern = (
         r"[\(\[\{][^\(\)\[\]\{\}]*\b(?:feat\.?|ft\.?|remaster(?:ed)?|live|bonus|deluxe|edit|mix|"
         r"version|mono|stereo|anniversary|radio edit|original mix|extended)\b[^\(\)\[\]\{\}]*[\)\]\}]"
     )
     cleaned = re.sub(noise_pattern, "", cleaned, flags=re.IGNORECASE)
 
-    # Also catch " - Remastered 2009" or " - 2011 Mix" or " - Live" suffixes
+    # Remove unparenthesized featured artists (e.g. "feat. Alicia Keys" or "ft. Artist")
+    cleaned = re.sub(r"\b(?:feat\.?|ft\.?)\s+.*$", "", cleaned, flags=re.IGNORECASE)
+
+    # Remove remaster, live, or edition suffixes (e.g. " - 2017 Remaster", " - Remastered 2009", " - 2011 Mix")
     suffix_noise = (
-        r"\s*-\s*(?:remaster(?:ed)?(?:\s*\d{4})?|live(?:\s+at\s+[\w\s]+)?|\d{4}\s+mix|deluxe\s+version|mono|stereo).*$"
+        r"\s*-\s*(?:(?:\d{4}\s+)?remaster(?:ed)?(?:\s+(?:version|\d{4}))?|"
+        r"live(?:\s+at\s+[\w\s]+)?|\d{4}\s+mix|deluxe\s+version|mono|stereo).*$"
     )
     cleaned = re.sub(suffix_noise, "", cleaned, flags=re.IGNORECASE)
 
@@ -57,17 +62,24 @@ class UploadsCache:
     """
 
     def __init__(self, db_path: Path | str = "uploads_cache.sqlite"):
-        self.db_path = Path(db_path)
+        self.db_path = str(db_path)
+        self._conn = sqlite3.connect(self.db_path)
+        self._conn.row_factory = sqlite3.Row
         self._init_db()
 
-    def _get_connection(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self.db_path))
-        conn.row_factory = sqlite3.Row
-        return conn
+    def __enter__(self) -> "UploadsCache":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
+
+    def close(self) -> None:
+        if self._conn:
+            self._conn.close()
 
     def _init_db(self) -> None:
-        with self._get_connection() as conn:
-            conn.execute("""
+        with self._conn:
+            self._conn.execute("""
                 CREATE TABLE IF NOT EXISTS uploads (
                     video_id TEXT PRIMARY KEY,
                     entity_id TEXT,
@@ -82,9 +94,8 @@ class UploadsCache:
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_norm_artist_title ON uploads(norm_artist, norm_title)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_norm_title ON uploads(norm_title)")
-            conn.commit()
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_norm_artist_title ON uploads(norm_artist, norm_title)")
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_norm_title ON uploads(norm_title)")
 
     def upsert_songs(self, songs: List[Dict[str, Any]]) -> int:
         """
@@ -99,7 +110,6 @@ class UploadsCache:
             entity_id = song.get("entityId") or ""
             title = song.get("title") or ""
             
-            # Artist may be a list of dicts [{'name': '...', 'id': '...'}] or string
             artists = song.get("artists")
             if isinstance(artists, list) and artists:
                 artist_name = artists[0].get("name", "") if isinstance(artists[0], dict) else str(artists[0])
@@ -108,7 +118,6 @@ class UploadsCache:
             else:
                 artist_name = ""
 
-            # Album may be a dict {'name': '...'} or string
             album = song.get("album")
             if isinstance(album, dict):
                 album_name = album.get("name", "")
@@ -119,7 +128,6 @@ class UploadsCache:
 
             duration = song.get("duration_seconds") or 0
             if not duration and "duration" in song and isinstance(song["duration"], str):
-                # Parse "03:45"
                 parts = song["duration"].split(":")
                 try:
                     if len(parts) == 2:
@@ -147,8 +155,8 @@ class UploadsCache:
                 raw_json,
             ))
 
-        with self._get_connection() as conn:
-            conn.executemany("""
+        with self._conn:
+            self._conn.executemany("""
                 INSERT INTO uploads (
                     video_id, entity_id, title, artist, album, duration_seconds,
                     norm_title, norm_artist, norm_album, raw_json, updated_at
@@ -165,14 +173,12 @@ class UploadsCache:
                     raw_json=excluded.raw_json,
                     updated_at=CURRENT_TIMESTAMP
             """, records)
-            conn.commit()
 
         return len(records)
 
     def get_total_count(self) -> int:
-        with self._get_connection() as conn:
-            cursor = conn.execute("SELECT COUNT(*) FROM uploads")
-            return cursor.fetchone()[0]
+        cursor = self._conn.execute("SELECT COUNT(*) FROM uploads")
+        return cursor.fetchone()[0]
 
     def find_exact(self, norm_artist: str, norm_title: str, norm_album: str = "") -> Optional[Dict[str, Any]]:
         query = "SELECT * FROM uploads WHERE norm_artist = ? AND norm_title = ?"
@@ -182,29 +188,25 @@ class UploadsCache:
             params.append(norm_album)
         query += " LIMIT 1"
 
-        with self._get_connection() as conn:
-            row = conn.execute(query, params).fetchone()
-            return dict(row) if row else None
+        row = self._conn.execute(query, params).fetchone()
+        return dict(row) if row else None
 
     def find_by_artist_and_title(self, norm_artist: str, norm_title: str) -> List[Dict[str, Any]]:
-        with self._get_connection() as conn:
-            rows = conn.execute(
-                "SELECT * FROM uploads WHERE norm_artist = ? AND norm_title = ?",
-                (norm_artist, norm_title)
-            ).fetchall()
-            return [dict(r) for r in rows]
+        rows = self._conn.execute(
+            "SELECT * FROM uploads WHERE norm_artist = ? AND norm_title = ?",
+            (norm_artist, norm_title)
+        ).fetchall()
+        return [dict(r) for r in rows]
 
     def find_by_title(self, norm_title: str) -> List[Dict[str, Any]]:
-        with self._get_connection() as conn:
-            rows = conn.execute(
-                "SELECT * FROM uploads WHERE norm_title = ?",
-                (norm_title,)
-            ).fetchall()
-            return [dict(r) for r in rows]
+        rows = self._conn.execute(
+            "SELECT * FROM uploads WHERE norm_title = ?",
+            (norm_title,)
+        ).fetchall()
+        return [dict(r) for r in rows]
 
     def get_all_songs(self) -> List[Dict[str, Any]]:
-        with self._get_connection() as conn:
-            rows = conn.execute(
-                "SELECT video_id, title, artist, album, norm_title, norm_artist, norm_album, duration_seconds FROM uploads"
-            ).fetchall()
-            return [dict(r) for r in rows]
+        rows = self._conn.execute(
+            "SELECT video_id, title, artist, album, norm_title, norm_artist, norm_album, duration_seconds FROM uploads"
+        ).fetchall()
+        return [dict(r) for r in rows]

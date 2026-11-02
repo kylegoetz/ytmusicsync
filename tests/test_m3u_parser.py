@@ -88,3 +88,4 @@ def test_find_m3u_files(tmp_path):
     assert len(found) == 3
     names = {f.name for f in found}
     assert names == {"p1.m3u", "p2.m3u8", "p3.M3U"}
+

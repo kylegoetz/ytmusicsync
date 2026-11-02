@@ -68,13 +68,17 @@ class TrackMatcher:
         if norm_artist:
             by_artist_title = self.cache.find_by_artist_and_title(norm_artist=norm_artist, norm_title=norm_title)
             if by_artist_title:
-                # If multiple (e.g. remastered and original), prioritize matching album or duration
-                best = by_artist_title[0]
-                if norm_album:
-                    for cand in by_artist_title:
-                        if cand.get("norm_album") == norm_album:
-                            best = cand
-                            break
+                # Rank candidates by album match first, then duration closeness
+                def rank_candidate(cand: Dict) -> tuple[int, int]:
+                    # 0 if album matches, 1 otherwise
+                    album_diff = 0 if (norm_album and cand.get("norm_album") == norm_album) else 1
+                    # Duration difference in seconds
+                    cand_dur = cand.get("duration_seconds") or 0
+                    dur_diff = abs(cand_dur - track.duration_seconds) if track.duration_seconds > 0 else 0
+                    return (album_diff, dur_diff)
+
+                sorted_cands = sorted(by_artist_title, key=rank_candidate)
+                best = sorted_cands[0]
                 return MatchResult(
                     track=track,
                     matched_video_id=best["video_id"],
@@ -89,19 +93,20 @@ class TrackMatcher:
         title_matches = self.cache.find_by_title(norm_title)
         if title_matches:
             if norm_artist:
-                # Check if artist is a partial match or substring
+                # Require non-empty valid substring match (min length 3 to prevent "in", "the" collisions)
                 for cand in title_matches:
                     cand_art = cand.get("norm_artist", "")
-                    if norm_artist in cand_art or cand_art in norm_artist:
-                        return MatchResult(
-                            track=track,
-                            matched_video_id=cand["video_id"],
-                            matched_title=cand["title"],
-                            matched_artist=cand["artist"],
-                            matched_album=cand["album"],
-                            confidence=0.92,
-                            match_type="exact_artist_title"
-                        )
+                    if cand_art and len(cand_art) >= 3 and len(norm_artist) >= 3:
+                        if norm_artist in cand_art or cand_art in norm_artist:
+                            return MatchResult(
+                                track=track,
+                                matched_video_id=cand["video_id"],
+                                matched_title=cand["title"],
+                                matched_artist=cand["artist"],
+                                matched_album=cand["album"],
+                                confidence=0.92,
+                                match_type="exact_artist_title"
+                            )
             elif len(title_matches) == 1:
                 cand = title_matches[0]
                 return MatchResult(

@@ -139,3 +139,4 @@ Your playlists will immediately appear in your YouTube Music library, containing
   Run `python main.py auth` and re-paste your browser request headers. (Make sure you are logged into YouTube Music in the browser you copied from).
 - **Audio file paths in M3U**:
   The parser works whether original audio files exist on disk or not. If files are missing, it intelligently parses the track title, artist, and album from the `#EXTINF` tags and folder path structure.
+

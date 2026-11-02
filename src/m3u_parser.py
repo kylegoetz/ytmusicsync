@@ -138,11 +138,20 @@ def parse_m3u(file_path: Path) -> List[TrackEntry]:
         raw_path = line
         inferred_artist, inferred_album, inferred_title = parse_path_metadata(raw_path)
 
-        # Check local file if accessible
-        local_path = Path(raw_path)
+        # Clean and unquote path for local filesystem check
+        cleaned_path = raw_path
+        if cleaned_path.startswith("file://localhost/"):
+            cleaned_path = cleaned_path[len("file://localhost/"):]
+        elif cleaned_path.startswith("file://"):
+            cleaned_path = cleaned_path[len("file://"):]
+        cleaned_path = urllib.parse.unquote(cleaned_path).replace("\\", "/")
+        if re.match(r"^[a-zA-Z]:/", cleaned_path):
+            cleaned_path = cleaned_path[3:]
+
+        local_path = Path(cleaned_path)
         if not local_path.is_file():
             # Try resolving relative to the m3u location
-            candidate = file_path.parent / raw_path
+            candidate = file_path.parent / cleaned_path
             if candidate.is_file():
                 local_path = candidate
 
@@ -183,3 +192,4 @@ def find_m3u_files(folder_path: Path) -> List[Path]:
             if lower.endswith(".m3u") or lower.endswith(".m3u8"):
                 results.append(Path(root) / f)
     return sorted(results)
+
