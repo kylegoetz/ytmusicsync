@@ -1,0 +1,5 @@
+ytmusicapi>=1.8.0
+rapidfuzz>=3.0.0
+mutagen>=1.47.0
+tqdm>=4.66.0
+pytest>=7.0.0
