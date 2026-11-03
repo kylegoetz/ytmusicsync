@@ -35,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     sync_parser.add_argument("m3u", type=str, help="Path to .m3u or .m3u8 playlist file")
     sync_parser.add_argument("--name", type=str, default=None, help="Custom name for the YouTube Music playlist")
     sync_parser.add_argument("--dry-run", action="store_true", help="Preview matches and generate report without creating playlists")
+    sync_parser.add_argument("--music-root", type=str, default=None, help="Optional root folder of audio files (e.g. synced Mega folder) to verify local files")
     sync_parser.add_argument("--cache-db", type=str, default="uploads_cache.sqlite", help="Path to SQLite uploads cache")
     sync_parser.add_argument("--auth-file", type=str, default=None, help="Path to auth JSON")
     sync_parser.add_argument("--fuzzy-threshold", type=float, default=88.0, help="Minimum fuzzy match score (0-100, default: 88)")
@@ -45,11 +46,12 @@ def build_parser() -> argparse.ArgumentParser:
     batch_parser = subparsers.add_parser("batch-sync", help="Sync all M3U playlists in a directory to YouTube Music")
     batch_parser.add_argument("folder", type=str, help="Directory containing .m3u / .m3u8 files")
     batch_parser.add_argument("--dry-run", action="store_true", help="Preview matches without creating playlists")
+    batch_parser.add_argument("--music-root", type=str, default=None, help="Optional root folder of audio files (e.g. synced Mega folder) to verify local files")
     batch_parser.add_argument("--cache-db", type=str, default="uploads_cache.sqlite", help="Path to SQLite uploads cache")
     batch_parser.add_argument("--auth-file", type=str, default=None, help="Path to auth JSON")
     batch_parser.add_argument("--fuzzy-threshold", type=float, default=88.0, help="Minimum fuzzy match score (0-100, default: 88)")
     batch_parser.add_argument("--allow-duplicates", action="store_true", help="Allow duplicate songs in playlists")
-    batch_parser.add_argument("--reports-dir", type=str, default="reports", help="Directory to save CSV audit reports")
+    batch_parser.add_argument("--reports-dir", type=str, default="reports", help="Directory to save CSV audit reports and failure logs")
 
     return parser
 
@@ -145,6 +147,8 @@ def run_sync_single(
     fuzzy_threshold: float = 88.0,
     allow_duplicates: bool = False,
     report_path: Path | str | None = None,
+    log_path: Path | str | None = None,
+    music_root: Path | str | None = None,
     matcher: TrackMatcher | None = None
 ) -> dict[str, Any]:
     m3u = Path(m3u_path)
@@ -163,7 +167,7 @@ def run_sync_single(
     playlist_name = custom_name or m3u.stem
     print(f"\nProcessing playlist: '{playlist_name}' ({m3u.name})")
 
-    tracks = parse_m3u(m3u)
+    tracks = parse_m3u(m3u, music_root=music_root)
     print(f"Extracted {len(tracks)} track entries from M3U.")
 
     match_results = []
@@ -176,13 +180,22 @@ def run_sync_single(
 
     builder = PlaylistBuilder(ytm_client)
 
-    # Determine report output path
+    # Determine report and failure log output paths
     if report_path:
         out_report = Path(report_path)
     else:
         out_report = Path(f"sync_report_{playlist_name}.csv")
 
+    if log_path:
+        out_log = Path(log_path)
+    else:
+        out_log = out_report.parent / f"sync_failures_{playlist_name}.txt"
+
     builder.export_report(match_results, out_report)
+    builder.export_failure_log(match_results, out_log, playlist_name=playlist_name)
+
+    missing_files_count = sum(1 for m in match_results if not getattr(m.track, "file_exists", False))
+    found_files_count = len(match_results) - missing_files_count
 
     summary = builder.sync_playlist(
         playlist_name=playlist_name,
@@ -191,6 +204,9 @@ def run_sync_single(
         allow_duplicates=allow_duplicates
     )
     summary["report_path"] = str(out_report)
+    summary["log_path"] = str(out_log)
+    summary["missing_files_count"] = missing_files_count
+    summary["found_files_count"] = found_files_count
     return summary
 
 
@@ -202,6 +218,7 @@ def handle_sync(args: argparse.Namespace) -> int:
             auth_file=args.auth_file,
             custom_name=args.name,
             dry_run=args.dry_run,
+            music_root=args.music_root,
             fuzzy_threshold=args.fuzzy_threshold,
             allow_duplicates=args.allow_duplicates,
             report_path=args.report_path
@@ -211,12 +228,22 @@ def handle_sync(args: argparse.Namespace) -> int:
         return 1
 
     print("\n--- Sync Summary ---")
-    print(f"Playlist:        {summary['playlist_name']}")
-    print(f"Total Tracks:    {summary['total_tracks']}")
-    print(f"Matched Tracks:  {summary['matched_tracks']} ({summary['match_rate']}%)")
-    print(f"Unmatched:       {summary['unmatched_tracks']}")
-    print(f"Mode:            {'DRY-RUN (no changes made)' if summary['dry_run'] else 'LIVE (created playlists)'}")
-    print(f"Audit Report:    {summary['report_path']}")
+    print(f"Playlist:          {summary['playlist_name']}")
+    print(f"Total Tracks:      {summary['total_tracks']}")
+    print(f"Matched in YTM:    {summary['matched_tracks']} ({summary['match_rate']}%)")
+    print(f"Unmatched in YTM:  {summary['unmatched_tracks']}")
+    print(f"Local Audio Files: {summary['found_files_count']} found on disk, {summary['missing_files_count']} missing from disk")
+    print(f"Mode:              {'DRY-RUN (no changes made)' if summary['dry_run'] else 'LIVE (created playlists)'}")
+    print(f"Audit CSV:         {summary['report_path']}")
+    print(f"Diagnostic Log:    {summary['log_path']}")
+
+    if summary["unmatched_tracks"] > 0 or summary["missing_files_count"] > 0:
+        print("\n[!] Failures / Warnings detected:")
+        if summary["unmatched_tracks"] > 0:
+            print(f"  • {summary['unmatched_tracks']} track(s) in M3U could not be found in your YouTube Music uploads.")
+        if summary["missing_files_count"] > 0:
+            print(f"  • {summary['missing_files_count']} audio file(s) referenced in M3U are missing from your local disk.")
+        print(f"  --> Check '{summary['log_path']}' for detailed reasons and track list.")
 
     if summary["chunks"]:
         print("\nPlaylists:")
@@ -250,29 +277,40 @@ def handle_batch_sync(args: argparse.Namespace) -> int:
     shared_matcher = TrackMatcher(cache, fuzzy_threshold=args.fuzzy_threshold)
 
     success_count = 0
+    total_unmatched = 0
+    total_missing_files = 0
+
     for idx, m3u in enumerate(m3u_files, 1):
         print("\n==========================================")
         print(f"Playlist {idx}/{len(m3u_files)}: {m3u.name}")
         print("==========================================")
         report_path = reports_dir / f"sync_report_{m3u.stem}.csv"
+        log_path = reports_dir / f"sync_failures_{m3u.stem}.txt"
         try:
             summary = run_sync_single(
                 m3u_path=m3u,
                 cache_db=args.cache_db,
                 auth_file=args.auth_file,
                 dry_run=args.dry_run,
+                music_root=args.music_root,
                 fuzzy_threshold=args.fuzzy_threshold,
                 allow_duplicates=args.allow_duplicates,
                 report_path=report_path,
+                log_path=log_path,
                 matcher=shared_matcher
             )
             print(f"Matched {summary['matched_tracks']}/{summary['total_tracks']} ({summary['match_rate']}%)")
+            total_unmatched += summary["unmatched_tracks"]
+            total_missing_files += summary["missing_files_count"]
             success_count += 1
         except Exception as e:
             print(f"✗ Failed syncing '{m3u.name}': {e}")
 
     print(f"\n✓ Batch sync completed! Successfully processed {success_count}/{len(m3u_files)} playlists.")
-    print(f"Detailed CSV reports saved in: {reports_dir.resolve()}/")
+    if total_unmatched > 0 or total_missing_files > 0:
+        print(f"[!] Total unmatched across playlists: {total_unmatched}")
+        print(f"[!] Total missing audio files: {total_missing_files}")
+    print(f"Detailed CSV reports and failure logs saved in: {reports_dir.resolve()}/")
     return 0
 
 
@@ -307,6 +345,7 @@ def interactive_menu() -> int:
             if not m3u:
                 print("No path entered.")
                 continue
+            music_root = input("Enter local music folder (e.g. Mega folder) to verify audio files, or press Enter to skip: ").strip().strip('"').strip("'")
             dry_str = input("Run in Dry-Run preview mode first? (Y/n): ").strip().lower()
             dry_run = dry_str != "n"
             handle_sync(argparse.Namespace(
@@ -315,6 +354,7 @@ def interactive_menu() -> int:
                 auth_file=None,
                 name=None,
                 dry_run=dry_run,
+                music_root=music_root if music_root else None,
                 fuzzy_threshold=88.0,
                 allow_duplicates=False,
                 report_path=None
@@ -324,6 +364,7 @@ def interactive_menu() -> int:
             if not folder:
                 print("No folder path entered.")
                 continue
+            music_root = input("Enter local music folder (e.g. Mega folder) to verify audio files, or press Enter to skip: ").strip().strip('"').strip("'")
             dry_str = input("Run in Dry-Run preview mode first? (Y/n): ").strip().lower()
             dry_run = dry_str != "n"
             handle_batch_sync(argparse.Namespace(
@@ -331,6 +372,7 @@ def interactive_menu() -> int:
                 cache_db="uploads_cache.sqlite",
                 auth_file=None,
                 dry_run=dry_run,
+                music_root=music_root if music_root else None,
                 fuzzy_threshold=88.0,
                 allow_duplicates=False,
                 reports_dir="reports"

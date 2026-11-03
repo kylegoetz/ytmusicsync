@@ -3,6 +3,7 @@ import re
 import urllib.parse
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional, List
 
 try:
     import mutagen
@@ -17,6 +18,8 @@ class TrackEntry:
     artist: str = ""
     album: str = ""
     duration_seconds: int = 0
+    file_exists: bool = False
+    resolved_path: Optional[str] = None
 
 
 def clean_track_title(raw_title: str) -> str:
@@ -93,9 +96,10 @@ def read_file_text(file_path: Path) -> str:
     return raw_bytes.decode("latin-1", errors="replace")
 
 
-def parse_m3u(file_path: Path) -> list[TrackEntry]:
+def parse_m3u(file_path: Path, music_root: Optional[Path | str] = None) -> list[TrackEntry]:
     """
     Parses an M3U or M3U8 file and extracts TrackEntry records.
+    Optionally checks if audio files exist locally under music_root.
     """
     text = read_file_text(file_path)
     lines = [line.strip() for line in text.splitlines()]
@@ -104,6 +108,8 @@ def parse_m3u(file_path: Path) -> list[TrackEntry]:
     current_extinf_duration = 0
     current_extinf_artist = ""
     current_extinf_title = ""
+
+    music_root_path = Path(music_root) if music_root else None
 
     for line in lines:
         if not line:
@@ -147,14 +153,32 @@ def parse_m3u(file_path: Path) -> list[TrackEntry]:
         if re.match(r"^[a-zA-Z]:/", cleaned_path):
             cleaned_path = cleaned_path[3:]
 
-        local_path = Path(cleaned_path)
-        if not local_path.is_file():
-            # Try resolving relative to the m3u location
-            candidate = file_path.parent / cleaned_path
-            if candidate.is_file():
-                local_path = candidate
+        # Locate audio file on disk
+        found_file = None
+        candidates = [
+            Path(cleaned_path),
+            file_path.parent / cleaned_path
+        ]
+        if music_root_path:
+            candidates.extend([
+                music_root_path / cleaned_path,
+                music_root_path / Path(cleaned_path).name,
+            ])
+            if inferred_artist and inferred_album:
+                candidates.append(music_root_path / inferred_artist / inferred_album / Path(cleaned_path).name)
 
-        tags = read_tags_with_mutagen(local_path)
+        for cand in candidates:
+            try:
+                if cand.is_file():
+                    found_file = cand
+                    break
+            except Exception:
+                continue
+
+        file_exists = found_file is not None
+        resolved_path = str(found_file) if found_file else None
+
+        tags = read_tags_with_mutagen(found_file) if found_file else None
         if tags and any(tags[:3]):
             artist = tags[0] or current_extinf_artist or inferred_artist
             album = tags[1] or inferred_album
@@ -172,6 +196,8 @@ def parse_m3u(file_path: Path) -> list[TrackEntry]:
             artist=artist,
             album=album,
             duration_seconds=duration,
+            file_exists=file_exists,
+            resolved_path=resolved_path
         ))
 
         # Reset extinf state for the next entry

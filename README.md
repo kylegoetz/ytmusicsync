@@ -96,29 +96,40 @@ Before creating anything on YouTube Music, test your matching accuracy without m
 #### To test a single playlist:
 ```bash
 python main.py sync "path/to/playlist.m3u" --dry-run
+# Optional: verify against local files synced from Mega:
+python main.py sync "path/to/playlist.m3u" --dry-run --music-root "path/to/Mega/Music"
 ```
 
 #### To test an entire folder of playlists:
 ```bash
-python main.py batch-sync "path/to/playlists_folder" --dry-run
+python main.py batch-sync "path/to/playlists_folder" --dry-run --music-root "path/to/Mega/Music"
 ```
 
-This will print match statistics in your terminal:
+This will print match and diagnostic statistics in your terminal:
 ```text
 Processing playlist: 'Classic Rock' (Classic Rock.m3u)
 Extracted 1,240 track entries from M3U.
 Matching tracks to uploaded library: 100%|██████████| 1240/1240 [00:01<00:00, 1082tracks/s]
 
 --- Sync Summary ---
-Playlist:        Classic Rock
-Total Tracks:    1240
-Matched Tracks:  1198 (96.6%)
-Unmatched:       42
-Mode:            DRY-RUN (no changes made)
-Audit Report:    sync_report_Classic Rock.csv
+Playlist:          Classic Rock
+Total Tracks:      1240
+Matched in YTM:    1198 (96.6%)
+Unmatched in YTM:  42
+Local Audio Files: 1200 found on disk, 40 missing from disk
+Mode:              DRY-RUN (no changes made)
+Audit CSV:         sync_report_Classic Rock.csv
+Diagnostic Log:    sync_failures_Classic Rock.txt
+
+[!] Failures / Warnings detected:
+  • 42 track(s) in M3U could not be found in your YouTube Music uploads.
+  • 40 audio file(s) referenced in M3U are missing from your local disk.
+  --> Check 'sync_failures_Classic Rock.txt' for detailed reasons and track list.
 ```
 
-A detailed CSV report (`sync_report_<playlist_name>.csv`) is generated. You can open it in Excel or Numbers to see every matched song and inspect any unmatched tracks.
+Two diagnostic files are created:
+1. `sync_failures_<playlist_name>.txt`: A plain-text report listing the exact songs missing from YouTube Music uploads, missing audio files on disk, and fuzzy matches needing review.
+2. `sync_report_<playlist_name>.csv`: A spreadsheet you can open in Excel or Numbers with columns for local file status, resolved file paths, confidence scores, and diagnostic notes.
 
 ---
 
