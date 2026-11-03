@@ -1,6 +1,6 @@
 import csv
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TypeVar
+from typing import Any, TypeVar
 
 from src.matcher import MatchResult
 from src.ytm_client import YTMClient
@@ -8,7 +8,7 @@ from src.ytm_client import YTMClient
 T = TypeVar("T")
 
 
-def chunk_items(items: List[T], max_size: int = 5000) -> List[List[T]]:
+def chunk_items(items: list[T], max_size: int = 5000) -> list[list[T]]:
     """Splits a list into chunks of at most max_size items."""
     if not items:
         return []
@@ -26,10 +26,10 @@ class PlaylistBuilder:
     - CSV audit report generation
     """
 
-    def __init__(self, ytm_client: Optional[YTMClient] = None):
+    def __init__(self, ytm_client: YTMClient | None = None):
         self.ytm_client = ytm_client
 
-    def export_report(self, match_results: List[MatchResult], output_csv_path: Path | str) -> None:
+    def export_report(self, match_results: list[MatchResult], output_csv_path: Path | str) -> None:
         """
         Exports a CSV audit report showing every song from the M3U, whether it was matched,
         and the YouTube Music upload it was matched to.
@@ -73,11 +73,11 @@ class PlaylistBuilder:
     def sync_playlist(
         self,
         playlist_name: str,
-        match_results: List[MatchResult],
+        match_results: list[MatchResult],
         dry_run: bool = False,
         max_size: int = 5000,
         allow_duplicates: bool = False
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Reconstructs the playlist on YouTube Music using only matched uploaded tracks.
         Automatically splits into sequenced parts if matched tracks exceed max_size (default 5,000).

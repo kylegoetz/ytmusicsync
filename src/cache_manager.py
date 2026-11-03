@@ -1,9 +1,9 @@
 import json
-from pathlib import Path
 import re
 import sqlite3
-from typing import Any, Dict, List, Optional
 import unicodedata
+from pathlib import Path
+from typing import Any
 
 
 def normalize_text(text: str) -> str:
@@ -97,7 +97,7 @@ class UploadsCache:
             self._conn.execute("CREATE INDEX IF NOT EXISTS idx_norm_artist_title ON uploads(norm_artist, norm_title)")
             self._conn.execute("CREATE INDEX IF NOT EXISTS idx_norm_title ON uploads(norm_title)")
 
-    def upsert_songs(self, songs: List[Dict[str, Any]]) -> int:
+    def upsert_songs(self, songs: list[dict[str, Any]]) -> int:
         """
         Batch upserts song dictionaries returned by ytmusicapi.get_library_upload_songs().
         """
@@ -180,7 +180,7 @@ class UploadsCache:
         cursor = self._conn.execute("SELECT COUNT(*) FROM uploads")
         return cursor.fetchone()[0]
 
-    def find_exact(self, norm_artist: str, norm_title: str, norm_album: str = "") -> Optional[Dict[str, Any]]:
+    def find_exact(self, norm_artist: str, norm_title: str, norm_album: str = "") -> dict[str, Any] | None:
         query = "SELECT * FROM uploads WHERE norm_artist = ? AND norm_title = ?"
         params = [norm_artist, norm_title]
         if norm_album:
@@ -191,21 +191,21 @@ class UploadsCache:
         row = self._conn.execute(query, params).fetchone()
         return dict(row) if row else None
 
-    def find_by_artist_and_title(self, norm_artist: str, norm_title: str) -> List[Dict[str, Any]]:
+    def find_by_artist_and_title(self, norm_artist: str, norm_title: str) -> list[dict[str, Any]]:
         rows = self._conn.execute(
             "SELECT * FROM uploads WHERE norm_artist = ? AND norm_title = ?",
             (norm_artist, norm_title)
         ).fetchall()
         return [dict(r) for r in rows]
 
-    def find_by_title(self, norm_title: str) -> List[Dict[str, Any]]:
+    def find_by_title(self, norm_title: str) -> list[dict[str, Any]]:
         rows = self._conn.execute(
             "SELECT * FROM uploads WHERE norm_title = ?",
             (norm_title,)
         ).fetchall()
         return [dict(r) for r in rows]
 
-    def get_all_songs(self) -> List[Dict[str, Any]]:
+    def get_all_songs(self) -> list[dict[str, Any]]:
         rows = self._conn.execute(
             "SELECT video_id, title, artist, album, norm_title, norm_artist, norm_album, duration_seconds FROM uploads"
         ).fetchall()

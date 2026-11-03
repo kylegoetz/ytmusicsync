@@ -1,19 +1,19 @@
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+
 import rapidfuzz.fuzz
 import rapidfuzz.process
 
-from src.m3u_parser import TrackEntry
 from src.cache_manager import UploadsCache, normalize_text
+from src.m3u_parser import TrackEntry
 
 
 @dataclass
 class MatchResult:
     track: TrackEntry
-    matched_video_id: Optional[str]
-    matched_title: Optional[str]
-    matched_artist: Optional[str]
-    matched_album: Optional[str]
+    matched_video_id: str | None
+    matched_title: str | None
+    matched_artist: str | None
+    matched_album: str | None
     confidence: float
     match_type: str  # 'exact_full', 'exact_artist_title', 'exact_title_only', 'fuzzy', 'none'
 
@@ -27,9 +27,9 @@ class TrackMatcher:
     def __init__(self, cache: UploadsCache, fuzzy_threshold: float = 88.0):
         self.cache = cache
         self.fuzzy_threshold = fuzzy_threshold
-        self._all_songs_cache: Optional[List[Dict]] = None
+        self._all_songs_cache: list[dict] | None = None
 
-    def _get_all_cached_songs(self) -> List[Dict]:
+    def _get_all_cached_songs(self) -> list[dict]:
         if self._all_songs_cache is None:
             self._all_songs_cache = self.cache.get_all_songs()
         return self._all_songs_cache
@@ -69,7 +69,7 @@ class TrackMatcher:
             by_artist_title = self.cache.find_by_artist_and_title(norm_artist=norm_artist, norm_title=norm_title)
             if by_artist_title:
                 # Rank candidates by album match first, then duration closeness
-                def rank_candidate(cand: Dict) -> tuple[int, int]:
+                def rank_candidate(cand: dict) -> tuple[int, int]:
                     # 0 if album matches, 1 otherwise
                     album_diff = 0 if (norm_album and cand.get("norm_album") == norm_album) else 1
                     # Duration difference in seconds

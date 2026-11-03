@@ -1,6 +1,5 @@
-import pytest
-from pathlib import Path
-from src.m3u_parser import TrackEntry, parse_m3u, find_m3u_files, parse_path_metadata
+from src.m3u_parser import find_m3u_files, parse_m3u
+
 
 def test_parse_standard_extinf(tmp_path):
     content = """#EXTM3U

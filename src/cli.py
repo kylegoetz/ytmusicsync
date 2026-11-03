@@ -1,11 +1,12 @@
 import argparse
-from pathlib import Path
 import sys
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any
+
 from tqdm import tqdm
 
-from src.m3u_parser import parse_m3u, find_m3u_files
 from src.cache_manager import UploadsCache
+from src.m3u_parser import find_m3u_files, parse_m3u
 from src.matcher import TrackMatcher
 from src.playlist_builder import PlaylistBuilder
 from src.ytm_client import YTMClient
@@ -138,14 +139,14 @@ def handle_cache(args: argparse.Namespace) -> int:
 def run_sync_single(
     m3u_path: Path | str,
     cache_db: Path | str = "uploads_cache.sqlite",
-    auth_file: Optional[Path | str] = None,
-    custom_name: Optional[str] = None,
+    auth_file: Path | str | None = None,
+    custom_name: str | None = None,
     dry_run: bool = False,
     fuzzy_threshold: float = 88.0,
     allow_duplicates: bool = False,
-    report_path: Optional[Path | str] = None,
-    matcher: Optional[TrackMatcher] = None
-) -> Dict[str, Any]:
+    report_path: Path | str | None = None,
+    matcher: TrackMatcher | None = None
+) -> dict[str, Any]:
     m3u = Path(m3u_path)
     if not m3u.exists():
         raise FileNotFoundError(f"M3U playlist not found: {m3u}")
@@ -250,9 +251,9 @@ def handle_batch_sync(args: argparse.Namespace) -> int:
 
     success_count = 0
     for idx, m3u in enumerate(m3u_files, 1):
-        print(f"\n==========================================")
+        print("\n==========================================")
         print(f"Playlist {idx}/{len(m3u_files)}: {m3u.name}")
-        print(f"==========================================")
+        print("==========================================")
         report_path = reports_dir / f"sync_report_{m3u.stem}.csv"
         try:
             summary = run_sync_single(
@@ -275,7 +276,7 @@ def handle_batch_sync(args: argparse.Namespace) -> int:
     return 0
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 

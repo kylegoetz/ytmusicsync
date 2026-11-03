@@ -1,9 +1,8 @@
-from dataclasses import dataclass
-from pathlib import Path
-from typing import List, Optional
 import os
 import re
 import urllib.parse
+from dataclasses import dataclass
+from pathlib import Path
 
 try:
     import mutagen
@@ -65,7 +64,7 @@ def parse_path_metadata(path_str: str) -> tuple[str, str, str]:
     return artist, album, title
 
 
-def read_tags_with_mutagen(file_path: Path) -> Optional[tuple[str, str, str, int]]:
+def read_tags_with_mutagen(file_path: Path) -> tuple[str, str, str, int] | None:
     """If file exists on local filesystem, attempts to read tags via mutagen."""
     if not mutagen or not file_path.is_file():
         return None
@@ -94,14 +93,14 @@ def read_file_text(file_path: Path) -> str:
     return raw_bytes.decode("latin-1", errors="replace")
 
 
-def parse_m3u(file_path: Path) -> List[TrackEntry]:
+def parse_m3u(file_path: Path) -> list[TrackEntry]:
     """
     Parses an M3U or M3U8 file and extracts TrackEntry records.
     """
     text = read_file_text(file_path)
     lines = [line.strip() for line in text.splitlines()]
 
-    tracks: List[TrackEntry] = []
+    tracks: list[TrackEntry] = []
     current_extinf_duration = 0
     current_extinf_artist = ""
     current_extinf_title = ""
@@ -183,9 +182,9 @@ def parse_m3u(file_path: Path) -> List[TrackEntry]:
     return tracks
 
 
-def find_m3u_files(folder_path: Path) -> List[Path]:
+def find_m3u_files(folder_path: Path) -> list[Path]:
     """Recursively locates all .m3u and .m3u8 playlist files in a directory."""
-    results: List[Path] = []
+    results: list[Path] = []
     for root, _, files in os.walk(folder_path):
         for f in files:
             lower = f.lower()

@@ -1,8 +1,8 @@
-import pytest
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+
 from src.cache_manager import UploadsCache, normalize_text
 from src.ytm_client import YTMClient
+
 
 def test_normalize_text():
     assert normalize_text("Café del Mar") == "cafe del mar"

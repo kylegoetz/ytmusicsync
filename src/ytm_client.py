@@ -1,8 +1,10 @@
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
 import time
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
 
 from ytmusicapi import YTMusic
+
 from src.cache_manager import UploadsCache
 
 
@@ -14,11 +16,11 @@ class YTMClient:
 
     DEFAULT_AUTH_FILES = ["browser.json", "oauth.json", "headers.json"]
 
-    def __init__(self, auth_path: Optional[str | Path] = None):
+    def __init__(self, auth_path: str | Path | None = None):
         self.auth_path = self._resolve_auth_file(auth_path)
-        self._ytmusic: Optional[YTMusic] = None
+        self._ytmusic: YTMusic | None = None
 
-    def _resolve_auth_file(self, auth_path: Optional[str | Path]) -> Optional[Path]:
+    def _resolve_auth_file(self, auth_path: str | Path | None) -> Path | None:
         if auth_path:
             p = Path(auth_path)
             if p.exists():
@@ -42,7 +44,7 @@ class YTMClient:
             self._ytmusic = YTMusic(str(self.auth_path))
         return self._ytmusic
 
-    def test_connection(self) -> Dict[str, Any]:
+    def test_connection(self) -> dict[str, Any]:
         """Validates that credentials work by making a light library call."""
         try:
             sample = self.ytmusic.get_library_upload_songs(limit=1)
@@ -53,8 +55,8 @@ class YTMClient:
     def sync_uploaded_songs_to_cache(
         self,
         cache: UploadsCache,
-        limit: Optional[int] = None,
-        batch_callback: Optional[Callable[[int], None]] = None
+        limit: int | None = None,
+        batch_callback: Callable[[int], None] | None = None
     ) -> int:
         """
         Fetches uploaded songs from YouTube Music and persists them incrementally
@@ -64,10 +66,16 @@ class YTMClient:
         
         # Check if we can stream continuations directly via ytmusic internals
         try:
-            from ytmusicapi.parsers.library import get_library_contents, parse_uploaded_items
-            from ytmusicapi.parsers.browsing import pop_songs_random_mix
-            from ytmusicapi.continuations import get_continuation_params, get_continuation_contents
             from ytmusicapi.constants import MUSIC_SHELF
+            from ytmusicapi.continuations import (
+                get_continuation_contents,
+                get_continuation_params,
+            )
+            from ytmusicapi.parsers.browsing import pop_songs_random_mix
+            from ytmusicapi.parsers.library import (
+                get_library_contents,
+                parse_uploaded_items,
+            )
 
             endpoint = "browse"
             body = {"browseId": "FEmusic_library_privately_owned_tracks"}
@@ -131,7 +139,7 @@ class YTMClient:
     def add_playlist_items(
         self,
         playlist_id: str,
-        video_ids: List[str],
+        video_ids: list[str],
         duplicates: bool = False,
         batch_size: int = 50,
         pause_seconds: float = 0.5,

@@ -1,11 +1,10 @@
 import csv
-from pathlib import Path
 from unittest.mock import MagicMock
-import pytest
 
 from src.m3u_parser import TrackEntry
 from src.matcher import MatchResult
 from src.playlist_builder import PlaylistBuilder, chunk_items
+
 
 def test_chunk_items():
     items = list(range(12500))

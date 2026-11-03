@@ -1,9 +1,7 @@
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-import pytest
 
-from src.cli import build_parser, run_sync_single, main
 from src.cache_manager import UploadsCache
+from src.cli import build_parser, main, run_sync_single
+
 
 def test_cli_parser_help():
     parser = build_parser()

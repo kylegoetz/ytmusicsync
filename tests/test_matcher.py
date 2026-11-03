@@ -1,7 +1,9 @@
 import pytest
-from src.m3u_parser import TrackEntry
+
 from src.cache_manager import UploadsCache
-from src.matcher import TrackMatcher, MatchResult
+from src.m3u_parser import TrackEntry
+from src.matcher import TrackMatcher
+
 
 @pytest.fixture
 def populated_cache(tmp_path):

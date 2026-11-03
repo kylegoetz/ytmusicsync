@@ -1,6 +1,5 @@
-import pytest
-from pathlib import Path
 from unittest.mock import MagicMock
+
 from src.cache_manager import UploadsCache, normalize_text
 from src.m3u_parser import TrackEntry, parse_m3u
 from src.matcher import TrackMatcher
@@ -128,3 +127,4 @@ def test_add_playlist_items_with_retry_and_error_handling():
     added = client.add_playlist_items("pl123", ["v1", "v2"], pause_seconds=0)
     assert added == 2
     assert mock_yt.add_playlist_items.call_count == 2
+
