@@ -40,3 +40,4 @@ jobs:
           name: ytmusicsync-windows-x64
           path: dist/ytmusicsync.exe
           if-no-files-found: error
+
