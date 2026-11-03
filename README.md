@@ -14,10 +14,32 @@ When you export playlists from a large legacy iTunes library (30,000+ tracks), s
 3. **Overcomes YouTube's 5,000 Track Cap:** If a playlist has more than 5,000 songs, it automatically splits it into sequenced parts (e.g. `My Playlist (Part 1 of 3)`).
 4. **Safety & Audit Reports:** Includes a non-destructive `--dry-run` mode and creates a `.csv` audit file showing exactly which songs were matched and which were missing from your uploads.
 5. **Batch Folder Sync:** Sync a single `.m3u` file or an entire directory of smart playlists at once.
+6. **No-Python Windows Executable:** Can be distributed as a standalone `.exe` that non-technical users can simply double-click.
 
 ---
 
-## Quick Start Guide
+## Windows Standalone Executable (No Python Required)
+
+If you are on Windows and don't want to install Python:
+1. Download `ytmusicsync.exe` (built automatically via GitHub Actions under the **Actions** tab of this repository).
+2. Double-click `ytmusicsync.exe`.
+3. An interactive menu will appear directly in your window:
+   ```text
+   ==============================================
+       YouTube Music Playlist Sync (ytmusicsync) 
+   ==============================================
+     [1] Connect / Verify Account (auth)
+     [2] Download & Cache Uploaded Songs (cache)
+     [3] Sync a Single Playlist (sync)
+     [4] Sync a Folder of Playlists (batch-sync)
+     [5] Exit
+   ==============================================
+   ```
+4. Follow the prompts! You can even drag and drop your `.m3u` playlist files or playlist folder directly into the window.
+
+---
+
+## Developer / Command-Line Guide
 
 ### Step 1: Install Dependencies
 

@@ -276,7 +276,85 @@ def handle_batch_sync(args: argparse.Namespace) -> int:
     return 0
 
 
+def interactive_menu() -> int:
+    """
+    Interactive text menu for users who launch the application directly (e.g. double-clicking .exe on Windows)
+    without specifying command line arguments.
+    """
+    while True:
+        print("\n==============================================")
+        print("    YouTube Music Playlist Sync (ytmusicsync) ")
+        print("==============================================")
+        print("  [1] Connect / Verify Account (auth)")
+        print("  [2] Download & Cache Uploaded Songs (cache)")
+        print("  [3] Sync a Single Playlist (sync)")
+        print("  [4] Sync a Folder of Playlists (batch-sync)")
+        print("  [5] Exit")
+        print("==============================================")
+
+        try:
+            choice = input("Select an option (1-5): ").strip()
+        except (KeyboardInterrupt, EOFError):
+            print("\nExiting.")
+            return 0
+
+        if choice == "1":
+            handle_auth(argparse.Namespace(file=None, verify=False))
+        elif choice == "2":
+            handle_cache(argparse.Namespace(auth_file=None, cache_db="uploads_cache.sqlite", limit=None))
+        elif choice == "3":
+            m3u = input("Enter path to .m3u / .m3u8 file: ").strip().strip('"').strip("'")
+            if not m3u:
+                print("No path entered.")
+                continue
+            dry_str = input("Run in Dry-Run preview mode first? (Y/n): ").strip().lower()
+            dry_run = dry_str != "n"
+            handle_sync(argparse.Namespace(
+                m3u=m3u,
+                cache_db="uploads_cache.sqlite",
+                auth_file=None,
+                name=None,
+                dry_run=dry_run,
+                fuzzy_threshold=88.0,
+                allow_duplicates=False,
+                report_path=None
+            ))
+        elif choice == "4":
+            folder = input("Enter path to folder containing playlists: ").strip().strip('"').strip("'")
+            if not folder:
+                print("No folder path entered.")
+                continue
+            dry_str = input("Run in Dry-Run preview mode first? (Y/n): ").strip().lower()
+            dry_run = dry_str != "n"
+            handle_batch_sync(argparse.Namespace(
+                folder=folder,
+                cache_db="uploads_cache.sqlite",
+                auth_file=None,
+                dry_run=dry_run,
+                fuzzy_threshold=88.0,
+                allow_duplicates=False,
+                reports_dir="reports"
+            ))
+        elif choice in ("5", "q", "exit"):
+            print("Goodbye!")
+            return 0
+        else:
+            print("Invalid option. Please enter 1, 2, 3, 4, or 5.")
+
+        try:
+            input("\nPress Enter to return to menu...")
+        except (KeyboardInterrupt, EOFError):
+            return 0
+
+
 def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+
+    # When run without arguments (e.g. double-clicked on Windows), launch interactive menu
+    if not argv:
+        return interactive_menu()
+
     parser = build_parser()
     args = parser.parse_args(argv)
 
