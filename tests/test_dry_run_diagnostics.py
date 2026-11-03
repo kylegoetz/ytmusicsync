@@ -78,3 +78,4 @@ def test_failure_log_generation(tmp_path):
     assert "Unuploaded Song" in content
     assert "MISSING LOCAL AUDIO FILES" in content
     assert "Ghost Song" in content
+
