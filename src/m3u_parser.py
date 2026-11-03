@@ -188,7 +188,7 @@ def find_m3u_files(folder_path: Path) -> list[Path]:
     for root, _, files in os.walk(folder_path):
         for f in files:
             lower = f.lower()
-            if lower.endswith(".m3u") or lower.endswith(".m3u8"):
+            if lower.endswith((".m3u", ".m3u8")):
                 results.append(Path(root) / f)
     return sorted(results)
 

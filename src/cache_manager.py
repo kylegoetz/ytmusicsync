@@ -3,7 +3,7 @@ import re
 import sqlite3
 import unicodedata
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 
 def normalize_text(text: str) -> str:
@@ -67,7 +67,7 @@ class UploadsCache:
         self._conn.row_factory = sqlite3.Row
         self._init_db()
 
-    def __enter__(self) -> "UploadsCache":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
