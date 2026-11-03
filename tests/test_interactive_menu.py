@@ -13,3 +13,4 @@ def test_main_no_args_triggers_interactive_menu():
         exit_code = main([])
         assert exit_code == 0
         mock_interactive.assert_called_once()
+
